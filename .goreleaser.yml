@@ -1,0 +1,67 @@
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: migraterr
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+      - freebsd
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 6
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+      - goos: darwin
+        goarch: arm
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: arm64
+    main: main.go
+    binary: migraterr
+
+archives:
+  - id: migraterr
+    builds:
+      - migraterr
+    files:
+      - none*
+    replacements:
+      amd64: x86_64
+
+release:
+  prerelease: auto
+  footer: |
+    **Full Changelog**: https://github.com/zze0s/migraterr/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: 'New Features'
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 10
+    - title: Other work
+      order: 999

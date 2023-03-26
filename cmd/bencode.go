@@ -74,9 +74,6 @@ func RunBencodeEdit() *cobra.Command {
 		}
 
 		for _, file := range files {
-			fmt.Printf("found: %s", file)
-			processedFiles++
-
 			_, fileName := filepath.Split(file)
 
 			if export != "" {
@@ -84,15 +81,18 @@ func RunBencodeEdit() *cobra.Command {
 			}
 
 			if err := bencoding.Process(file, export, replacements, verbose); err != nil {
-				log.Fatalf("error processing file: %v", err)
+				log.Fatalf("error processing file: %q\n", err)
 			}
+
+			processedFiles++
 
 			if verbose {
-				log.Printf("[%d/%d] sucessfully processed file %s", len(files), processedFiles, fileName)
+				fmt.Printf("[%d/%d] sucessfully processed file %s\n", len(files), processedFiles, fileName)
 			}
+
 		}
 
-		fmt.Printf("processed %d files\n", processedFiles)
+		fmt.Printf("migraterr bencode processed %d files\n", processedFiles)
 	}
 
 	return command

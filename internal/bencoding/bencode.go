@@ -14,12 +14,12 @@ import (
 func Process(path, export string, replacements []string, verbose bool) error {
 	read, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatalf("error reading file: %s err: %q", path, err)
+		log.Fatalf("error reading file: %s err: %q\n", path, err)
 	}
 
 	var fastResume map[string]interface{}
 	if err := bencode.DecodeString(string(read), &fastResume); err != nil {
-		log.Printf("could not decode bencode file: %s", path)
+		log.Printf("could not decode bencode file: %s\n", path)
 	}
 
 	if len(replacements) > 0 {
@@ -53,17 +53,19 @@ func Process(path, export string, replacements []string, verbose bool) error {
 
 	if export != "" {
 		if err = Encode(export, fastResume); err != nil {
-			log.Printf("could not export fastresume file %s error: %q", path, err)
+			log.Printf("could not export fastresume file %s error: %q\n", path, err)
 			return err
 		}
 	} else {
 		if err = Encode(path, fastResume); err != nil {
-			log.Printf("could not write fastresume file %s error: %q", path, err)
+			log.Printf("could not write fastresume file %s error: %q\n", path, err)
 			return err
 		}
 	}
 
-	log.Printf("sucessfully processed file %s", path)
+	if verbose {
+		log.Printf("sucessfully processed file %s\n", path)
+	}
 
 	return nil
 }
@@ -71,7 +73,7 @@ func Process(path, export string, replacements []string, verbose bool) error {
 func Encode(path string, data any) error {
 	file, err := os.Create(path)
 	if err != nil {
-		log.Printf("os create error: %q", err)
+		log.Printf("os create error: %q\n", err)
 		return err
 	}
 
@@ -80,7 +82,7 @@ func Encode(path string, data any) error {
 	bufferedWriter := bufio.NewWriter(file)
 	encoder := bencode.NewEncoder(bufferedWriter)
 	if err := encoder.Encode(data); err != nil {
-		log.Printf("encode error: %q", err)
+		log.Printf("encode error: %q\n", err)
 		return err
 	}
 
@@ -94,21 +96,21 @@ func Encode(path string, data any) error {
 func Info(path string) error {
 	read, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatalf("error reading file: %s err: %q", path, err)
+		log.Fatalf("error reading file: %s err: %q\n", path, err)
 	}
 
 	var fastResume map[string]interface{}
 	if err := bencode.DecodeString(string(read), &fastResume); err != nil {
-		log.Printf("could not decode bencode file %s", path)
+		log.Printf("could not decode bencode file %s\n", path)
 	}
 
 	_, fileName := filepath.Split(path)
 
-	fmt.Printf("Filename: %s\n", fileName)
+	fmt.Printf("\nFilename: %s\n", fileName)
 	for k, v := range fastResume {
 		fmt.Printf("%s: %v\n", k, v)
 	}
-	fmt.Println("")
+	fmt.Printf("\n")
 
 	return nil
 }

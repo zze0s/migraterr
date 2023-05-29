@@ -76,11 +76,12 @@ func RunBencodeEdit() *cobra.Command {
 		for _, file := range files {
 			_, fileName := filepath.Split(file)
 
+			exportFile := ""
 			if export != "" {
-				export = filepath.Join(export, fileName)
+				exportFile = filepath.Join(export, fileName)
 			}
 
-			if err := bencoding.Process(file, export, replacements, verbose); err != nil {
+			if err := bencoding.Process(file, exportFile, replacements, verbose); err != nil {
 				log.Fatalf("error processing file: %q\n", err)
 			}
 

@@ -45,7 +45,7 @@ func RunBencodeEdit() *cobra.Command {
 	var (
 		dry          bool
 		verbose      bool
-		export       string
+		exportDir    string
 		glob         string
 		replacements []string
 	)
@@ -54,7 +54,7 @@ func RunBencodeEdit() *cobra.Command {
 	command.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 
 	command.Flags().StringVar(&glob, "glob", "", "Glob to files: eg ./files/**/*.torrent.rtorrent")
-	command.Flags().StringVar(&export, "export", "", "Export to directory. Will replace if not specified")
+	command.Flags().StringVar(&exportDir, "export", "", "Export to directory. Will replace if not specified")
 	command.Flags().StringSliceVar(&replacements, "replace", []string{}, "Replace: pattern|replace")
 
 	command.Run = func(cmd *cobra.Command, args []string) {
@@ -76,12 +76,7 @@ func RunBencodeEdit() *cobra.Command {
 		for _, file := range files {
 			_, fileName := filepath.Split(file)
 
-			exportFile := ""
-			if export != "" {
-				exportFile = filepath.Join(export, fileName)
-			}
-
-			if err := bencoding.Process(file, exportFile, replacements, verbose); err != nil {
+			if err := bencoding.Process(file, exportDir, replacements, verbose, dry); err != nil {
 				log.Fatalf("error processing file: %q\n", err)
 			}
 

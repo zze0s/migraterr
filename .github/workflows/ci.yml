@@ -47,7 +47,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --rm-dist --skip-publish
+          args: release --clean --skip-publish
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3

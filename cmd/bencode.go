@@ -83,12 +83,12 @@ func RunBencodeEdit() *cobra.Command {
 			processedFiles++
 
 			if verbose {
-				fmt.Printf("[%d/%d] sucessfully processed file %s\n", len(files), processedFiles, fileName)
+				log.Printf("[%d/%d] sucessfully processed file %s\n", len(files), processedFiles, fileName)
 			}
 
 		}
 
-		fmt.Printf("migraterr bencode processed %d files\n", processedFiles)
+		log.Printf("migraterr bencode processed %d files\n", processedFiles)
 	}
 
 	return command

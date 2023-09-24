@@ -60,14 +60,15 @@ func Process(filePath, exportDir string, replacements []string, verbose, dry boo
 					case string:
 						if strings.Contains(val, parts[0]) {
 							decodedFile[k] = strings.Replace(val, parts[0], parts[1], -1)
+
+							if verbose {
+								log.Printf("replaced: '%s' with '%s'\n", parts[0], parts[1])
+							}
 						}
 					default:
 						continue
 					}
 
-					if verbose {
-						fmt.Printf("replaced: '%s' with '%s'\n", parts[0], parts[1])
-					}
 				}
 			}
 		}

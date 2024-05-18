@@ -18,12 +18,24 @@ Available sub commands:
 
 #### edit
 
+Usage:
+```shell
+migraterr bencode edit "~/.sessions/*.torrent.rtorrent" --replace "/old/path/|/new/path/" --dry-run --verbose
+migraterr bencode edit "~/.sessions/*.torrent.rtorrent" --replace "/old/path/|/new/path/" --export "./edited-files" -v
+```
+
 Required flags:
-- `--glob`  Glob to file(s) like `~/.sessions/*.torrent.rtorrent`
-- `--replacements`  Array of `oldvalue|newvalue` similar to `sed`.
+- `--replace`  Array of `oldvalue|newvalue` similar to `sed`.
 
 Optional flags:
 - `--dry-run`  Do not edit any data
 - `--verbose`  Verbose output
 - `--export /new/dir`   Export edited files to new directory:
-- `--export /new/dir`   Export edited files to new directory:
+
+#### info
+
+Usage:
+```shell
+migraterr bencode info "~/.sessions/*.torrent.rtorrent"
+migraterr bencode edit "~/.sessions/123.torrent.rtorrent" 
+```

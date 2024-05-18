@@ -3,6 +3,7 @@ package bencoding
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,25 +13,14 @@ import (
 	"github.com/zeebo/bencode"
 )
 
-type BencodeFile map[string]interface{}
+type Replacement struct {
+	Old string
+	New string
+}
 
-func Process(filePath, exportDir string, replacements []string, verbose, dry bool) error {
-	file, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Printf("error reading file: %s err: %q\n", filePath, err)
-		return errors.Wrapf(err, "could not read file: %s", filePath)
-	}
+type BencodeFile map[string]any
 
-	if verbose {
-		log.Printf("reading file %s\n", filePath)
-	}
-
-	exportPath := filePath
-	if exportDir != "" {
-		_, file := filepath.Split(filePath)
-		exportPath = filepath.Join(exportDir, file)
-	}
-
+func ProcessFile(reader io.Reader, filePath, exportPath string, replacements []Replacement, verbose, dry bool) error {
 	if dry {
 		if verbose {
 			log.Printf("dry-run: process file %s\n", filePath)
@@ -38,31 +28,24 @@ func Process(filePath, exportDir string, replacements []string, verbose, dry boo
 		}
 	} else {
 		var decodedFile BencodeFile
-		if err := bencode.DecodeBytes(file, &decodedFile); err != nil {
-			log.Printf("could not decode bencode file: %s\n", filePath)
+		decoder := bencode.NewDecoder(reader)
+
+		err := decoder.Decode(&decodedFile)
+		if err != nil {
 			return errors.Wrapf(err, "could not decode file: %s", filePath)
 		}
 
 		if len(replacements) > 0 {
 			for k, v := range decodedFile {
 				for _, replacement := range replacements {
-					if !strings.Contains(replacement, "|") {
-						continue
-					}
-
-					parts := strings.Split(replacement, "|")
-
-					if len(parts) == 0 || len(parts) > 2 {
-						continue
-					}
 
 					switch val := v.(type) {
 					case string:
-						if strings.Contains(val, parts[0]) {
-							decodedFile[k] = strings.Replace(val, parts[0], parts[1], -1)
+						if strings.Contains(val, replacement.Old) {
+							decodedFile[k] = strings.Replace(val, replacement.Old, replacement.New, -1)
 
 							if verbose {
-								log.Printf("replaced: '%s' with '%s'\n", parts[0], parts[1])
+								log.Printf("replaced: %q with %q\n", replacement.Old, replacement.New)
 							}
 						}
 					default:
@@ -73,14 +56,17 @@ func Process(filePath, exportDir string, replacements []string, verbose, dry boo
 			}
 		}
 
-		if err := decodedFile.EncodeAndWrite(exportPath); err != nil {
-			log.Printf("could not write fastresume file %s error: %q\n", exportPath, err)
-			return err
+		exportFile, err := os.Create(exportPath)
+		if err != nil {
+			return errors.Wrapf(err, "could not create file: %s", exportPath)
 		}
-	}
 
-	if verbose {
-		log.Printf("sucessfully processed file %s\n", exportPath)
+		defer exportFile.Close()
+
+		err = decodedFile.EncodeAndWriteFile(exportFile)
+		if err != nil {
+			return errors.Wrapf(err, "could not write fastresume file %s", exportPath)
+		}
 	}
 
 	return nil
@@ -104,6 +90,20 @@ func Encode(path string, data any) error {
 
 	if err := bufferedWriter.Flush(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (f BencodeFile) EncodeAndWriteFile(file *os.File) error {
+	bufferedWriter := bufio.NewWriter(file)
+	encoder := bencode.NewEncoder(bufferedWriter)
+	if err := encoder.Encode(f); err != nil {
+		return errors.Wrapf(err, "could not encode file: %s", file.Name())
+	}
+
+	if err := bufferedWriter.Flush(); err != nil {
+		return errors.Wrapf(err, "could not flush buffered writer: %s", file.Name())
 	}
 
 	return nil
@@ -145,18 +145,22 @@ func Info(path string) error {
 		log.Fatalf("error reading file: %s err: %q\n", path, err)
 	}
 
-	var fastResume map[string]interface{}
+	var fastResume map[string]any
 	if err := bencode.DecodeString(string(read), &fastResume); err != nil {
 		log.Printf("could not decode bencode file %s\n", path)
 	}
 
 	_, fileName := filepath.Split(path)
 
-	fmt.Printf("\nFilename: %s\n", fileName)
+	var builder strings.Builder
+
+	fmt.Fprintf(&builder, "\nFilename: %s\n", fileName)
+
 	for k, v := range fastResume {
-		fmt.Printf("%s: %v\n", k, v)
+		fmt.Fprintf(&builder, "%s: %v\n", k, v)
 	}
-	fmt.Printf("\n")
+
+	fmt.Print(builder.String())
 
 	return nil
 }

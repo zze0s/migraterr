@@ -102,8 +102,7 @@ func BencodeEditCommand() *cobra.Command {
 		}
 
 		if exportDir != "" {
-			dir := filepath.Dir(exportDir)
-			err = os.MkdirAll(dir, os.ModePerm)
+			err = os.MkdirAll(exportDir, os.ModePerm)
 			if err != nil {
 				return errors.Wrapf(err, "could not create export dir: %q", exportDir)
 			}

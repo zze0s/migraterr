@@ -75,8 +75,9 @@ func BencodeEditCommand() *cobra.Command {
 		// validate replaceStrings
 		if len(replaceStrings) > 0 {
 			for _, replacement := range replaceStrings {
-				if !strings.Contains(replacement, "|") {
-					return errors.Errorf("invalid replacement: %q", replacement)
+				err := validateReplacement(replacement)
+				if err != nil {
+					return err
 				}
 
 				parts := strings.Split(replacement, "|")
@@ -170,6 +171,13 @@ func BencodeEditCommand() *cobra.Command {
 	}
 
 	return command
+}
+
+func validateReplacement(replacement string) error {
+	if !strings.Contains(replacement, "|") {
+		return errors.Errorf("invalid replacement: %q", replacement)
+	}
+	return nil
 }
 
 func openAndProcessFile(filePath string, exportPath string, replacements []bencoding.Replacement, verbose bool, dry bool, currentIteration string) (bool, error) {

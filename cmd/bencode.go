@@ -10,6 +10,7 @@ import (
 	"migraterr/internal/bencoding"
 
 	"github.com/pkg/errors"
+	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -90,8 +91,6 @@ func BencodeEditCommand() *cobra.Command {
 			}
 		}
 
-		processedFiles := 0
-
 		files, err := filepath.Glob(path)
 		if err != nil {
 			return err
@@ -108,31 +107,64 @@ func BencodeEditCommand() *cobra.Command {
 			}
 		}
 
+		if verbose {
+			log.Printf("Found %d files\n", len(files))
+		}
+
+		processedFiles := 0
+		modifiedFiles := 0
+
+		bar := progressbar.NewOptions(len(files), progressbar.OptionSetDescription("Processing files..."))
+
 		for idx, file := range files {
 			_, fileName := filepath.Split(file)
+
+			if !verbose {
+				bar.Add(1)
+			}
 
 			exportPath := file
 			if exportDir != "" {
 				exportPath = filepath.Join(exportDir, fileName)
 			}
 
-			if verbose {
-				log.Printf("[%d/%d] reading file %s\n", idx, len(files), fileName)
+			if dry {
+				if verbose {
+					log.Printf("[%d/%d] dry-run: process file %s\n", idx, len(files), fileName)
+				}
+			} else {
+				if verbose {
+					log.Printf("[%d/%d] process file %s\n", idx, len(files), fileName)
+				}
 			}
 
-			err = openAndProcessFile(file, exportPath, replacements, verbose, dry)
+			currentIteration := fmt.Sprintf("[%d/%d]", idx, len(files))
+
+			modified, err := openAndProcessFile(file, exportPath, replacements, verbose, dry, currentIteration)
 			if err != nil {
 				return errors.Wrapf(err, "could not open and process file: %q", file)
 			}
 
+			if modified {
+				modifiedFiles++
+			}
+
 			processedFiles++
 
-			if verbose {
-				log.Printf("[%d/%d] sucessfully processed file %s\n", processedFiles, len(files), fileName)
+			if dry {
+				if verbose {
+					log.Printf("[%d/%d] dry-run: sucessfully processed file %s\n", processedFiles, len(files), fileName)
+				}
+			} else {
+				if verbose {
+					log.Printf("[%d/%d] sucessfully processed file %s\n", processedFiles, len(files), fileName)
+				}
 			}
 		}
 
-		log.Printf("migraterr bencode processed %d files\n", processedFiles)
+		if verbose {
+			log.Printf("migraterr bencode processed %d files and modified %d files\n", processedFiles, modifiedFiles)
+		}
 
 		return nil
 	}
@@ -140,20 +172,20 @@ func BencodeEditCommand() *cobra.Command {
 	return command
 }
 
-func openAndProcessFile(filePath string, exportPath string, replacements []bencoding.Replacement, verbose bool, dry bool) error {
+func openAndProcessFile(filePath string, exportPath string, replacements []bencoding.Replacement, verbose bool, dry bool, currentIteration string) (bool, error) {
 	fileReader, err := os.Open(filePath)
 	if err != nil {
-		return errors.Wrapf(err, "could not read filePath: %s", filePath)
+		return false, errors.Wrapf(err, "could not read filePath: %s", filePath)
 	}
 
 	defer fileReader.Close()
 
-	err = bencoding.ProcessFile(fileReader, filePath, exportPath, replacements, verbose, dry)
+	modified, err := bencoding.ProcessFile(fileReader, filePath, exportPath, replacements, verbose, dry, currentIteration)
 	if err != nil {
-		return errors.Wrapf(err, "error processing filePath: %s", filePath)
+		return false, errors.Wrapf(err, "error processing filePath: %s", filePath)
 	}
 
-	return nil
+	return modified, nil
 }
 
 func BencodeInfoCommand() *cobra.Command {

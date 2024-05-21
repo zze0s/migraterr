@@ -20,56 +20,77 @@ type Replacement struct {
 
 type BencodeFile map[string]any
 
-func ProcessFile(reader io.Reader, filePath, exportPath string, replacements []Replacement, verbose, dry bool) error {
+func ProcessFile(reader io.Reader, filePath, exportPath string, replacements []Replacement, verbose, dry bool, currentIteration string) (bool, error) {
 	if dry {
 		if verbose {
-			log.Printf("dry-run: process file %s\n", filePath)
-			log.Printf("dry-run: encode and write file %s\n", exportPath)
+			log.Printf("%s dry-run: process file %s\n", currentIteration, filePath)
 		}
-	} else {
-		var decodedFile BencodeFile
-		decoder := bencode.NewDecoder(reader)
+	}
 
-		err := decoder.Decode(&decodedFile)
-		if err != nil {
-			return errors.Wrapf(err, "could not decode file: %s", filePath)
+	var decodedFile BencodeFile
+	decoder := bencode.NewDecoder(reader)
+
+	err := decoder.Decode(&decodedFile)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return false, nil
 		}
+		return false, errors.Wrapf(err, "could not decode file: %s", filePath)
+	}
 
-		if len(replacements) > 0 {
-			for k, v := range decodedFile {
-				for _, replacement := range replacements {
+	modified := false
 
-					switch val := v.(type) {
-					case string:
-						if strings.Contains(val, replacement.Old) {
+	if len(replacements) > 0 {
+		for k, v := range decodedFile {
+			for _, replacement := range replacements {
+
+				switch val := v.(type) {
+				case string:
+					if strings.Contains(val, replacement.Old) {
+						if dry {
+							if verbose {
+								log.Printf("%s dry-run: replaced: %q with %q\n", currentIteration, replacement.Old, replacement.New)
+							}
+						} else {
 							decodedFile[k] = strings.Replace(val, replacement.Old, replacement.New, -1)
 
 							if verbose {
-								log.Printf("replaced: %q with %q\n", replacement.Old, replacement.New)
+								log.Printf("%s replaced: %q with %q\n", currentIteration, replacement.Old, replacement.New)
 							}
 						}
-					default:
-						continue
-					}
 
+						modified = true
+					}
+				default:
+					continue
 				}
 			}
 		}
+	}
 
+	if !modified {
+		log.Printf("%s found no data to replace\n", currentIteration)
+	}
+
+	if dry {
+		if verbose {
+			log.Printf("%s dry-run: encode and write file %s\n", currentIteration, exportPath)
+		}
+	} else {
 		exportFile, err := os.Create(exportPath)
 		if err != nil {
-			return errors.Wrapf(err, "could not create file: %s", exportPath)
+			return modified, errors.Wrapf(err, "could not create file: %s", exportPath)
 		}
 
 		defer exportFile.Close()
 
 		err = decodedFile.EncodeAndWriteFile(exportFile)
 		if err != nil {
-			return errors.Wrapf(err, "could not write fastresume file %s", exportPath)
+			return modified, errors.Wrapf(err, "could not write fastresume file %s", exportPath)
 		}
 	}
 
-	return nil
+	return modified, nil
 }
 
 func Encode(path string, data any) error {

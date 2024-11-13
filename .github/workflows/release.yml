@@ -2,8 +2,11 @@ name: release
 
 on:
   push:
+    branches:
+      - "master"
     tags:
       - 'v*'
+  pull_request:
 
 permissions:
   contents: write
@@ -15,38 +18,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.20.1'
+          go-version: '1.22.3'
           cache: true
 
       - name: Test
         run: go test -v ./...
 
-
   goreleaser:
     name: Build & publish binaries
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.20.1'
+          go-version: '1.22.3'
           cache: true
 
+      - name: Run GoReleaser build
+        if: github.event_name == 'pull_request'
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --skip=validate --skip=publish --parallelism 5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run GoReleaser build and publish tags
-        uses: goreleaser/goreleaser-action@v3
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
           version: latest
@@ -54,8 +67,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload assets
-        uses: actions/upload-artifact@v3
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: migraterr
           path: dist/*

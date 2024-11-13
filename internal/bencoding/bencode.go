@@ -3,6 +3,7 @@ package bencoding
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,78 +13,84 @@ import (
 	"github.com/zeebo/bencode"
 )
 
-type BencodeFile map[string]interface{}
+type Replacement struct {
+	Old string
+	New string
+}
 
-func Process(filePath, exportDir string, replacements []string, verbose, dry bool) error {
-	file, err := os.ReadFile(filePath)
+type BencodeFile map[string]any
+
+func ProcessFile(reader io.Reader, filePath, exportPath string, replacements []Replacement, verbose, dry bool, currentIteration string) (bool, error) {
+	if dry {
+		if verbose {
+			log.Printf("%s dry-run: process file %s\n", currentIteration, filePath)
+		}
+	}
+
+	var decodedFile BencodeFile
+	decoder := bencode.NewDecoder(reader)
+
+	err := decoder.Decode(&decodedFile)
 	if err != nil {
-		log.Printf("error reading file: %s err: %q\n", filePath, err)
-		return errors.Wrapf(err, "could not read file: %s", filePath)
+		if errors.Is(err, io.EOF) {
+			return false, nil
+		}
+		return false, errors.Wrapf(err, "could not decode file: %s", filePath)
 	}
 
-	if verbose {
-		log.Printf("reading file %s\n", filePath)
+	modified := false
+
+	if len(replacements) > 0 {
+		for k, v := range decodedFile {
+			for _, replacement := range replacements {
+
+				switch val := v.(type) {
+				case string:
+					if strings.Contains(val, replacement.Old) {
+						if dry {
+							if verbose {
+								log.Printf("%s dry-run: replaced: %q with %q\n", currentIteration, replacement.Old, replacement.New)
+							}
+						} else {
+							decodedFile[k] = strings.Replace(val, replacement.Old, replacement.New, -1)
+
+							if verbose {
+								log.Printf("%s replaced: %q with %q\n", currentIteration, replacement.Old, replacement.New)
+							}
+						}
+
+						modified = true
+					}
+				default:
+					continue
+				}
+			}
+		}
 	}
 
-	exportPath := filePath
-	if exportDir != "" {
-		_, file := filepath.Split(filePath)
-		exportPath = filepath.Join(exportDir, file)
+	if !modified {
+		log.Printf("%s found no data to replace\n", currentIteration)
 	}
 
 	if dry {
 		if verbose {
-			log.Printf("dry-run: process file %s\n", filePath)
-			log.Printf("dry-run: encode and write file %s\n", exportPath)
+			log.Printf("%s dry-run: encode and write file %s\n", currentIteration, exportPath)
 		}
 	} else {
-		var decodedFile BencodeFile
-		if err := bencode.DecodeBytes(file, &decodedFile); err != nil {
-			log.Printf("could not decode bencode file: %s\n", filePath)
-			return errors.Wrapf(err, "could not decode file: %s", filePath)
+		exportFile, err := os.Create(exportPath)
+		if err != nil {
+			return modified, errors.Wrapf(err, "could not create file: %s", exportPath)
 		}
 
-		if len(replacements) > 0 {
-			for k, v := range decodedFile {
-				for _, replacement := range replacements {
-					if !strings.Contains(replacement, "|") {
-						continue
-					}
+		defer exportFile.Close()
 
-					parts := strings.Split(replacement, "|")
-
-					if len(parts) == 0 || len(parts) > 2 {
-						continue
-					}
-
-					switch val := v.(type) {
-					case string:
-						if strings.Contains(val, parts[0]) {
-							decodedFile[k] = strings.Replace(val, parts[0], parts[1], -1)
-
-							if verbose {
-								log.Printf("replaced: '%s' with '%s'\n", parts[0], parts[1])
-							}
-						}
-					default:
-						continue
-					}
-
-				}
-			}
-		}
-
-		if err := decodedFile.EncodeAndWrite(exportPath); err != nil {
-			log.Printf("could not write fastresume file %s error: %q\n", exportPath, err)
-			return err
+		err = decodedFile.EncodeAndWriteFile(exportFile)
+		if err != nil {
+			return modified, errors.Wrapf(err, "could not write fastresume file %s", exportPath)
 		}
 	}
 
-	if verbose {
-		log.Printf("sucessfully processed file %s\n", exportPath)
-	}
-
-	return nil
+	return modified, nil
 }
 
 func Encode(path string, data any) error {
@@ -104,6 +111,20 @@ func Encode(path string, data any) error {
 
 	if err := bufferedWriter.Flush(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (f BencodeFile) EncodeAndWriteFile(file *os.File) error {
+	bufferedWriter := bufio.NewWriter(file)
+	encoder := bencode.NewEncoder(bufferedWriter)
+	if err := encoder.Encode(f); err != nil {
+		return errors.Wrapf(err, "could not encode file: %s", file.Name())
+	}
+
+	if err := bufferedWriter.Flush(); err != nil {
+		return errors.Wrapf(err, "could not flush buffered writer: %s", file.Name())
 	}
 
 	return nil
@@ -145,18 +166,22 @@ func Info(path string) error {
 		log.Fatalf("error reading file: %s err: %q\n", path, err)
 	}
 
-	var fastResume map[string]interface{}
+	var fastResume map[string]any
 	if err := bencode.DecodeString(string(read), &fastResume); err != nil {
 		log.Printf("could not decode bencode file %s\n", path)
 	}
 
 	_, fileName := filepath.Split(path)
 
-	fmt.Printf("\nFilename: %s\n", fileName)
+	var builder strings.Builder
+
+	fmt.Fprintf(&builder, "\nFilename: %s\n", fileName)
+
 	for k, v := range fastResume {
-		fmt.Printf("%s: %v\n", k, v)
+		fmt.Fprintf(&builder, "%s: %v\n", k, v)
 	}
-	fmt.Printf("\n")
+
+	fmt.Print(builder.String())
 
 	return nil
 }

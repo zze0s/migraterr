@@ -16,7 +16,7 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(cmd.RunBencode())
+	rootCmd.AddCommand(cmd.BencodeCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
